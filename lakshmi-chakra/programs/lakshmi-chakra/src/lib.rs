@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use magic_black_core::delegate;
 
 declare_id!("BYe1eVU9XeUeezxyrUN7L9zfWBhcjGAYugmbzhf6L1ze");
 
@@ -47,3 +48,48 @@ pub enum ErrorCode {
 }
 
 
+impl Lottery {
+    pub fn calculate_delta_tickets(&self, sol_amount_lamports: u64) -> f64  {
+        let sol_amount = sol_amount_lamports as f64 / 1_000_000_000.0;
+        let current_sol = self.total_sol as f64 / 1_000_000_000.0;
+
+        let new_total_sol = current_sol + sol_amount;
+
+        if self.k > 0.0 {
+            // t{s} = (-P0 + sqrt(P0^ 2 + 2*k*s)) / k;
+
+
+            let current_total_tickets = (-(self.p0) + ((self.p0 * self.p0) + 2.0 * self.k * current_sol).sqrt()) / self.k;
+            let new_total_tickets = (-(self.p0) + ((self.p0 * self.p0) + 2.0 * self.k * new_total_sol).sqrt()) / self.k;
+            
+            new_total_tickets - current_total_tickets
+        } else {
+            // Flat price case (k=0)
+            sol_amount / self.p0
+        }
+    }
+}
+
+#[derive(Accounts)]
+pub struct DelegateLottery<'info> {
+
+    #[account(mut)]
+    pub lottery: Account<'info, Lottery>,
+    pub authority: Signer<'info>,
+    pub magic_block_program: Program<'info, MagicBlock>,
+    pub system_program: Program<'info, System>,
+
+
+}
+
+pub fn delegate_lottery(ctx: Context<DelegateLottery>) -> Result<()> {
+
+    magic_black_core::delegate(
+
+        ctx.accounts.magic_block_program.to_account_info(),
+        ctx.accounts.lottery.to_account_info(),
+        ctx.accounts.authority.to_account_info(),
+    )?;
+
+    Ok(())
+}
