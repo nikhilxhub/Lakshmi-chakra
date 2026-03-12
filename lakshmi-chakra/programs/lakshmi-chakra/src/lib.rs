@@ -1,11 +1,95 @@
 use anchor_lang::prelude::*;
 use magic_black_core::delegate;
+use magic_black_core::ephemeral
 
 declare_id!("BYe1eVU9XeUeezxyrUN7L9zfWBhcjGAYugmbzhf6L1ze");
 
 #[program]
 pub mod lakshmi_chakra {
     use super::*;
+
+
+
+    pub fn initialize(
+        ctx :Context<Initialize>,
+        p0: f64,
+        k: f64,
+        duration_seconds: i64,
+    ) -> Result<()> {
+        let lottery = &mut ctx.accounts.lottery;
+        lottery.p0 = p0;
+        lottery.k = k;
+        lottery.total_sol = 0;
+        lottery.total_tickets = 0.0;
+
+        let current_time = Clock::get()?.unix_timestamp;
+
+        lottery.start_time = current_time;
+        lottery.end_time = current_time + duration_seconds;
+
+        lottery.authority = ctx.accounts.authority.key();
+        lottery.winner = None;
+        lottery.bump = ctx.bumps.lottery;
+
+        Ok(())
+    }
+
+
+    pub fn delegate_lottery(ctx: Context<DelegateLottery>) -> Result<()> {
+
+        magic_black_core::delegate(
+
+            ctx.accounts.magic_block_program.to_account_info(),
+            ctx.accounts.lottery.to_account_info(),
+            ctx.accounts.authority.to_account_info(),
+        )?;
+
+        Ok(())
+    }
+
+
+    #[ephemeral]
+    pub fn buy_ticket(ctx: Context<BuyTicket>, sol_amount_lamports: u64) -> Result<()> {
+
+        let lottery = &mut ctx.accounts.lottery;
+
+        let current_time = Clock::get()?.unix_timestamp;
+
+        require!(
+            current_time >= lottery.start_time,
+            ErrorCode::LotteryNotStarted
+        );
+
+        require!(
+            current_time <= lottery.end_time,
+            ErrorCode::LotteryEnded
+        );
+
+        require!(
+            sol_amount_lamports > 0,
+            ErrorCode::InvalidAmount
+        );
+
+        let delta_tickets = lottery.calculate_delta_tickets(sol_amount_lamports);
+
+        lottery.total_ticket += delta_tickets;
+        lottery.total_sol += sol_amount_lamports;
+
+        
+       let user_ticket = &mut ctx.accounts.user_ticket;
+
+       user_ticket.owner = ctx.accounts.user.key();
+       user_ticket.tickets += delta_tickets;
+       user_ticket.bump = ctx.bumps.user_ticket;
+
+       
+
+       msg!("User {} bought {} tickets", ctx.accounts.user.key(), delta_tickets);
+       Ok(())
+
+    }
+
+
 
 
 }
@@ -82,14 +166,46 @@ pub struct DelegateLottery<'info> {
 
 }
 
-pub fn delegate_lottery(ctx: Context<DelegateLottery>) -> Result<()> {
 
-    magic_black_core::delegate(
 
-        ctx.accounts.magic_block_program.to_account_info(),
-        ctx.accounts.lottery.to_account_info(),
-        ctx.accounts.authority.to_account_info(),
-    )?;
+#[derive(Accounts)]
+pub struct Initialize<'info> {
 
-    Ok(())
+    #[account(
+        init,
+        payer = authority,
+        space = 8 + std::mem::size_of::<Lottery>(),
+        seeds = [b"lottery"],
+        bump
+    )]
+    pub lottery:Account<'info, Lottery>,
+
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
 }
+
+
+
+#[derive(Accounts)]
+pub struct BuyTicket<'info> {
+    #[account(mut)]
+    pub lottery: Account<'info, Lottery>,
+
+    #[account(
+        init_if_needed,
+        payer = user,
+        space = 8 + std::mem::size_of::<UserTicket>(),
+        seeds = [b"ticket", user.key().as_ref()],
+        bump
+    )]
+    pub user_ticket: Account<'info, UserTicket>,
+
+    #[account(mut)]
+    pub user: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+
