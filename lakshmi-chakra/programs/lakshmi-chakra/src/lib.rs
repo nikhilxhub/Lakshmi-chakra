@@ -93,6 +93,33 @@ pub mod lakshmi_chakra {
 
     }
 
+    pub fn request_winner(ctx: Context<RequestWinner>) -> Result<()> {
+
+        let lottery = &mut ctx.accounts.Lottery;
+        let current_time = Clock::get()?;
+
+        require!(
+            clock.unix_timestamp >= lottery.end_time,
+            ErrorCode::LotteryNotEnded
+        );
+
+        magic_block_core::vrf::request_randomness(
+
+            ctx.accounts.magic_block_program.to_account_info(),
+            ctx.accounts.vrf_account.to_account_info(),
+            ctx.accounts.lottery.to_account_info(),
+
+        )?;
+
+        lottery.randomness_account = ctx.accounts.vrf_account.key();
+        
+        msg!("Magic block VRF requested!..");
+
+        Ok(())
+
+
+    }
+
 
 
 
