@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 use magic_black_core::delegate;
 use magic_black_core::ephemeral
+use magic_block_core::vrf::{request_randomness};
 
 declare_id!("BYe1eVU9XeUeezxyrUN7L9zfWBhcjGAYugmbzhf6L1ze");
 
@@ -72,11 +73,14 @@ pub mod lakshmi_chakra {
 
         let delta_tickets = lottery.calculate_delta_tickets(sol_amount_lamports);
 
+        let user_ticket = &mut ctx.accounts.user_ticket;
+ 
+        user_ticket.start_index = lottery.total_tickets;
+
         lottery.total_ticket += delta_tickets;
         lottery.total_sol += sol_amount_lamports;
 
         
-       let user_ticket = &mut ctx.accounts.user_ticket;
 
        user_ticket.owner = ctx.accounts.user.key();
        user_ticket.tickets += delta_tickets;
@@ -88,6 +92,8 @@ pub mod lakshmi_chakra {
        Ok(())
 
     }
+
+
 
 
 
@@ -107,6 +113,9 @@ pub struct Lottery {
     pub authority: Pubkey,
     pub winner: Option<Pubkey>,
     pub bump: u8,
+    pub winning_index: Option<f64>,
+    pub randomness_account: Pubkey,
+
 }
 
 #[account]
@@ -115,6 +124,7 @@ pub struct UserTicket {
     pub owner: Pubkey,
     pub tickets: f64,
     pub bump:u8,
+    pub start_index: f64,
 }
 
 #[error_code]
@@ -209,3 +219,17 @@ pub struct BuyTicket<'info> {
 }
 
 
+
+#[derive(Accounts)]
+pub struct RequestWinner<'info> {
+
+    #[account(mut, has_one = authority)]
+    pub lottery: Account<'info, Lottery>,
+    pub authority: Signer<'info>,
+
+    #[account(mut)]
+    pub vrf_account: AccountInfo<'info>,
+
+    pub magic_block_program: Program<'info, MagicBlock>,
+    pub system_program: Program<'info, System>,
+}
