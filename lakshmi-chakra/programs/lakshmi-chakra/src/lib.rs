@@ -120,6 +120,33 @@ pub mod lakshmi_chakra {
 
     }
 
+    pub fn resolve_winner(ctx: Context<ResolveWinner>) -> Result<()> {
+
+        let lottery = &mut ctx.accounts.lottery;
+
+        require!(
+            ctx.accounts.vrf_account.key() ==
+            lottery.randomness_account,
+
+            ErrorCode::InvalidRandomnessAccount
+        );
+
+        let randomness = magic_black_core::vrf::get_randomness(&ctx.accounts.vrf_account)?;
+
+        lottery.winning_index = Some((randomness % 1_000_000) as f64 / 1_000_000.0 * lottery.total_tickets);
+
+        msg!("Winning Index set to {:?}", lottery.winning_index);
+
+        Ok(())
+
+
+    }
+
+    pub fn claim_prize(ctx: Context<ClaimPrize>) -> Result<()> {
+
+
+    }
+
 
 
 
@@ -166,6 +193,8 @@ pub enum ErrorCode {
     InvalidAmount,
     #[msg("Invalid lottery parameters")]
     InvalidLotteryParameters,
+    #[msg("Invalid vrf account")]
+    InvalidRandomnessAccount
 }
 
 
@@ -258,5 +287,31 @@ pub struct RequestWinner<'info> {
     pub vrf_account: AccountInfo<'info>,
 
     pub magic_block_program: Program<'info, MagicBlock>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct ResolveWinner<'info> {
+
+    #[account(mut)]
+    pub lottery: Account<'info, Lottery>,
+
+    pub vrf_account: AccountInfo<'info>,
+}
+
+#[derive(Accounts)]
+pub struct ClaimPrize<'info> {
+
+    #[account(mut)]
+    pub lottery:Account<'info, Lottery>,
+
+    #[account(
+        seeds = [b"lottery", user.key().as_ref()],
+        bump = user_ticket.bump,
+    )]   
+    pub user_ticket: Account<'info, UserTicket>,
+
+    #[account(mut)]
+    pub user: Signer<'info>,
     pub system_program: Program<'info, System>,
 }
