@@ -1,7 +1,6 @@
 use anchor_lang::prelude::*;
-use magic_black_core::delegate;
-use magic_black_core::ephemeral
-use magic_block_core::vrf::{request_randomness};
+use ephemeral_rollups_sdk::prelude::*;
+use ephemeral_rollups_sdk::{delegate, ephemeral};
 
 declare_id!("BYe1eVU9XeUeezxyrUN7L9zfWBhcjGAYugmbzhf6L1ze");
 
@@ -38,7 +37,7 @@ pub mod lakshmi_chakra {
 
     pub fn delegate_lottery(ctx: Context<DelegateLottery>) -> Result<()> {
 
-        magic_black_core::delegate(
+        ephemeral_rollups_sdk::cpi::delegate(
 
             ctx.accounts.magic_block_program.to_account_info(),
             ctx.accounts.lottery.to_account_info(),
@@ -95,15 +94,15 @@ pub mod lakshmi_chakra {
 
     pub fn request_winner(ctx: Context<RequestWinner>) -> Result<()> {
 
-        let lottery = &mut ctx.accounts.Lottery;
+        let lottery = &mut ctx.accounts.lottery;
         let current_time = Clock::get()?;
 
         require!(
-            clock.unix_timestamp >= lottery.end_time,
+            current_time.unix_timestamp >= lottery.end_time,
             ErrorCode::LotteryNotEnded
         );
 
-        magic_block_core::vrf::request_randomness(
+        ephemeral_rollups_sdk::vrf::request_randomness(
 
             ctx.accounts.magic_block_program.to_account_info(),
             ctx.accounts.vrf_account.to_account_info(),
@@ -131,7 +130,7 @@ pub mod lakshmi_chakra {
             ErrorCode::InvalidRandomnessAccount
         );
 
-        let randomness = magic_black_core::vrf::get_randomness(&ctx.accounts.vrf_account)?;
+        let randomness = magic_block_core::vrf::get_randomness(&ctx.accounts.vrf_account)?;
 
         lottery.winning_index = Some((randomness % 1_000_000) as f64 / 1_000_000.0 * lottery.total_tickets);
 
@@ -147,7 +146,7 @@ pub mod lakshmi_chakra {
         let lottery = &mut ctx.accounts.lottery;
         let user_ticket = &ctx.accounts.user_ticket;
 
-        let win_idx = lottery.winning_index_ok_or(ErrorCode::WinnerNotDrawn)?;
+        let win_idx = lottery.winning_index.ok_or(ErrorCode::WinnerNotDrawn)?;
 
         let is_winner = win_idx >= user_ticket.start_index && win_idx < (user_ticket.start_index + user_ticket.tickets);
 
@@ -333,7 +332,7 @@ pub struct ClaimPrize<'info> {
     pub lottery:Account<'info, Lottery>,
 
     #[account(
-        seeds = [b"lottery", user.key().as_ref()],
+        seeds = [b"ticket", user.key().as_ref()],
         bump = user_ticket.bump,
     )]   
     pub user_ticket: Account<'info, UserTicket>,
@@ -341,4 +340,13 @@ pub struct ClaimPrize<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
     pub system_program: Program<'info, System>,
+}
+
+#[derive(Clone)]
+pub struct MagicBlock; 
+
+impl anchor_lang::Id for MagicBlock {
+    fn id() -> Pubkey {
+        pubkey!("MagicBlock11111111111111111111111111111111")
+    }
 }
