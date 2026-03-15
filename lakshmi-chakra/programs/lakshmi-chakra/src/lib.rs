@@ -77,7 +77,7 @@ pub mod lakshmi_chakra {
  
         user_ticket.start_index = lottery.total_tickets;
 
-        lottery.total_ticket += delta_tickets;
+        lottery.total_tickets += delta_tickets;
         lottery.total_sol += sol_amount_lamports;
 
         
