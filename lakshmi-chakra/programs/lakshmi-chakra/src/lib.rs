@@ -144,7 +144,28 @@ pub mod lakshmi_chakra {
 
     pub fn claim_prize(ctx: Context<ClaimPrize>) -> Result<()> {
 
+        let lottery = &mut ctx.accounts.lottery;
+        let user_ticket = &ctx.accounts.user_ticket;
 
+        let win_idx = lottery.winning_index_ok_or(ErrorCode::WinnerNotDrawn)?;
+
+        let is_winner = win_idx >= user_ticket.start_index && win_idx < (user_ticket.start_index + user_ticket.tickets);
+
+        require!(is_winner, ErrorCode::NotWinner);
+
+        let prize_amount = lottery.total_sol;
+
+        **ctx.accounts.lottery.to_account_info().try_borrow_mut_lamports()? -= prize_amount;
+
+        **ctx.accounts.user.to_account_info().try_borrow_mut_lamports()? += prize_amount;
+
+        lottery.total_sol = 0;
+
+        lottery.winner = Some(ctx.accounts.user.key());
+
+        msg!("Winner found! paid out {} SOL to {}", prize_amount as f64 / 1e9, ctx.accounts.user.key());
+
+        Ok(())
     }
 
 
@@ -194,7 +215,13 @@ pub enum ErrorCode {
     #[msg("Invalid lottery parameters")]
     InvalidLotteryParameters,
     #[msg("Invalid vrf account")]
-    InvalidRandomnessAccount
+    InvalidRandomnessAccount,
+    #[msg("Winner has not been drawn yet")]
+    WinnerNotDrawn,
+    #[msg("You are not the winner")]
+    NotWinner,
+    #[msg("Lottery has not ended yet")]
+    LotteryNotEnded;
 }
 
 
