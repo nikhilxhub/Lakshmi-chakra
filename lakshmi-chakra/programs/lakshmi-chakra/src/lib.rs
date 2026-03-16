@@ -55,6 +55,18 @@ pub mod lakshmi_chakra {
     #[ephemeral]
     pub fn buy_ticket(ctx: Context<BuyTicket>, sol_amount_lamports: u64) -> Result<()> {
 
+
+        anchor_lang::system_program::transfer(
+            CpiContext::new(
+                ctx.accounts.system_program.to_account_info(),
+                anchor_lang::system_program::Transfer {
+                    from: ctx.accounts.user.to_account_info(),
+                    to: ctx.accounts.lottery.to_account_info(),
+                },
+            ),
+            sol_amount_lamports,
+        )?;
+
         let lottery = &mut ctx.accounts.lottery;
 
         let current_time = Clock::get()?.unix_timestamp;
@@ -134,7 +146,7 @@ pub mod lakshmi_chakra {
             ErrorCode::InvalidRandomnessAccount
         );
 
-        let randomness = magic_block_core::vrf::get_randomness(&ctx.accounts.vrf_account)?;
+        let randomness = ephemeral_rollups_sdk::vrf::get_randomness(&ctx.accounts.vrf_account)?;
 
         lottery.winning_index = Some((randomness % 1_000_000) as f64 / 1_000_000.0 * lottery.total_tickets);
 

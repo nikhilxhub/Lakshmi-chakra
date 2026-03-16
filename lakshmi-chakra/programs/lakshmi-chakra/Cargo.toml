@@ -22,7 +22,7 @@ custom-panic = []
 
 [dependencies]
 anchor-lang = "0.32.1"
-ephemeral-rollups-sdk = "0.8.6"
+ephemeral-rollups-sdk = {version = "0.8.6", features = ["anchor"]}
 
 
 
