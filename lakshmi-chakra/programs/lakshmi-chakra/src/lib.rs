@@ -1,9 +1,13 @@
 use anchor_lang::prelude::*;
+use solana_program::pubkey;
+
 use ephemeral_rollups_sdk::prelude::*;
+
 use ephemeral_rollups_sdk::{delegate, ephemeral};
 
 declare_id!("BYe1eVU9XeUeezxyrUN7L9zfWBhcjGAYugmbzhf6L1ze");
 
+#[ephemeral]
 #[program]
 pub mod lakshmi_chakra {
     use super::*;
@@ -220,7 +224,7 @@ pub enum ErrorCode {
     #[msg("You are not the winner")]
     NotWinner,
     #[msg("Lottery has not ended yet")]
-    LotteryNotEnded;
+    LotteryNotEnded
 }
 
 
