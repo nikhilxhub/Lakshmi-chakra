@@ -231,7 +231,7 @@ impl Lottery {
             .checked_mul(SCALE)
             .ok_or(ErrorCode::MathOverflow)?
             .checked_div(1_000_000_000)
-            .ok_or(ErrorCode::MathOverflow)?; // SOL fixed point
+            .ok_or(ErrorCode::MathOverflow)?; // SOL fixed point (1e12)
             
         let current_sol = (self.total_sol as u128)
             .checked_mul(SCALE)
@@ -242,23 +242,39 @@ impl Lottery {
         let new_total_sol = current_sol.checked_add(sol_amount).ok_or(ErrorCode::MathOverflow)?;
 
         if self.k > 0 {
-            // t{s} = (-P0 + sqrt(P0^2 + 2*k*s)) / k
+            // Formula: t(s) = (-P0 + sqrt(P0^2 + 2*k*s)) / k
             
-            let calc_tickets = |s: u128| -> Result<u128> {
-                let p0_f = self.p0 as f64 / SCALE as f64;
-                let k_f = self.k as f64 / SCALE as f64;
-                let s_f = s as f64 / SCALE as f64;
+            let calc_total_tickets = |s: u128| -> Result<u128> {
+                // p0_sq = p0 * p0 (scaled by SCALE^2)
+                let p0_sq = self.p0.checked_mul(self.p0).ok_or(ErrorCode::MathOverflow)?;
                 
-                let res_f = (-p0_f + (p0_f * p0_f + 2.0 * k_f * s_f).sqrt()) / k_f;
-                Ok((res_f * SCALE as f64) as u128)
+                // term2 = 2 * k * s (scaled by SCALE^2)
+                let term2 = 2u128
+                    .checked_mul(self.k).ok_or(ErrorCode::MathOverflow)?
+                    .checked_mul(s).ok_or(ErrorCode::MathOverflow)?;
+                
+                // radicand = p0_sq + term2 (scaled by SCALE^2)
+                let radicand = p0_sq.checked_add(term2).ok_or(ErrorCode::MathOverflow)?;
+                
+                // root = sqrt(radicand) (scaled by SCALE)
+                let root = integer_sqrt(radicand);
+                
+                // tickets = (root - p0) * SCALE / k
+                // We multiply by SCALE to maintain fixed-point precision after division
+                let numerator = root.checked_sub(self.p0).ok_or(ErrorCode::MathOverflow)?;
+                let tickets = numerator
+                    .checked_mul(SCALE).ok_or(ErrorCode::MathOverflow)?
+                    .checked_div(self.k).ok_or(ErrorCode::MathOverflow)?;
+                
+                Ok(tickets)
             };
 
-            let current_total_tickets = calc_tickets(current_sol)?;
-            let new_total_tickets = calc_tickets(new_total_sol)?;
+            let current_total_tickets = calc_total_tickets(current_sol)?;
+            let new_total_tickets = calc_total_tickets(new_total_sol)?;
             
             Ok(new_total_tickets.checked_sub(current_total_tickets).ok_or(ErrorCode::MathOverflow)?)
         } else {
-            // Flat price: tickets = sol / p0
+            // Flat price: tickets = (sol * SCALE) / p0
             Ok(sol_amount
                 .checked_mul(SCALE)
                 .ok_or(ErrorCode::MathOverflow)?
@@ -267,6 +283,7 @@ impl Lottery {
         }
     }
 }
+
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
@@ -364,4 +381,20 @@ impl anchor_lang::Id for MagicBlock {
     fn id() -> Pubkey {
         pubkey!("MagicBlock11111111111111111111111111111111")
     }
+}
+
+pub fn integer_sqrt(val : u128) -> u128 {
+
+    if val == 0 {
+        return 0;
+    }
+    let mut x = 1u128 << ((128 - val.leading_zeros() + 1) / 2);
+    loop {
+        let y = (x + val / x) >> 1;
+        if y >= x {
+            return x;
+        }
+        x = y;
+    }
+    
 }
